@@ -1,75 +1,86 @@
+# app.py
+
+```python
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
 # =====================================
 # PAGE CONFIG
 # =====================================
 st.set_page_config(
     page_title="FuturePath AI Dashboard",
+    page_icon="🚀",
     layout="wide"
 )
 
 # =====================================
-# FUNCTION: CLEANING & TYPE CONVERSION
+# CUSTOM CSS
+# =====================================
+st.markdown('''
+<style>
+.metric-card {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+</style>
+''', unsafe_allow_html=True)
+
+# =====================================
+# CLEAN DATA
 # =====================================
 def process_dataframe(df):
-    """
-    Fungsi untuk membersihkan nama kolom dan memastikan tipe data benar.
-    """
-    # 1. Bersihkan nama kolom
     df.columns = (
         df.columns
         .str.strip()
         .str.lower()
         .str.replace(" ", "_")
     )
-    
-    # 2. Proteksi jika ada sisa Git Conflict di nama kolom
-    if any("<<<" in str(col) for col in df.columns):
-        st.error("⚠️ Terdeteksi 'Git Merge Conflict' pada file CSV! Harap bersihkan file Anda secara manual.")
-        st.stop()
 
-    # 3. Konversi kolom gaji ke angka (PENTING untuk memperbaiki TypeError: agg function failed)
     if "annual_salary_usd" in df.columns:
-        # errors='coerce' akan mengubah teks yang bukan angka menjadi NaN agar tidak merusak perhitungan
-        df["annual_salary_usd"] = pd.to_numeric(df["annual_salary_usd"], errors='coerce')
-        
+        df["annual_salary_usd"] = pd.to_numeric(
+            df["annual_salary_usd"],
+            errors="coerce"
+        )
+
     return df
 
 # =====================================
 # LOAD DATA
 # =====================================
-# Menggunakan try-except agar jika file tidak ditemukan atau rusak, dashboard tidak blank putih
-try:
-    df_jobs = pd.read_csv("data/processed/ai_jobs_market_2025_2026_clean.csv")
-    df_roles = pd.read_csv("data/processed/it_job_roles_skills_clean.csv")
-    df_career = pd.read_csv("data/processed/skill_career_recommendation_clean.csv")
+@st.cache_data
+def load_data():
+    jobs = pd.read_csv("ai_jobs_market_2025_2026_clean.csv")
+    roles = pd.read_csv("it_job_roles_skills_clean.csv")
+    career = pd.read_csv("skill_career_recommendation_clean.csv")
 
-    # Jalankan fungsi pembersihan
-    df_jobs = process_dataframe(df_jobs)
-    df_roles = process_dataframe(df_roles)
-    df_career = process_dataframe(df_career)
-    
+    jobs = process_dataframe(jobs)
+    roles = process_dataframe(roles)
+    career = process_dataframe(career)
+
+    return jobs, roles, career
+
+try:
+    df_jobs, df_roles, df_career = load_data()
 except Exception as e:
-    st.error(f"Gagal memuat data: {e}")
+    st.error(f"Error loading data: {e}")
     st.stop()
 
 # =====================================
-# TITLE
+# HEADER
 # =====================================
 st.title("🚀 FuturePath AI Dashboard")
-
-st.markdown("""
-Dashboard interaktif untuk exploratory data analysis (EDA), 
-career recommendation insight, dan skill gap analysis.
-""")
+st.markdown("### AI Career Analytics, Skill Insights & Career Recommendation")
+st.markdown("Explore AI job trends, IT skills, and future career recommendations.")
 
 # =====================================
 # SIDEBAR
 # =====================================
-st.sidebar.title("Navigation")
+st.sidebar.title("📌 Navigation")
 menu = st.sidebar.radio(
-    "Pilih Dashboard",
+    "Choose Dashboard",
     [
         "AI Jobs Market",
         "IT Roles & Skills",
@@ -78,85 +89,230 @@ menu = st.sidebar.radio(
 )
 
 # =====================================
-# DASHBOARD 1: AI JOBS MARKET
+# DASHBOARD 1
 # =====================================
 if menu == "AI Jobs Market":
+
     st.header("📊 AI Jobs Market Analysis")
 
-    # SEARCH FOR COLUMN NAMES
-    job_title_col = next((col for col in ["job_title", "jobtitle", "job_profession", "profession", "title"] if col in df_jobs.columns), None)
+    # FILTERS
+    st.sidebar.subheader("🔍 Filter Data")
 
-    # METRICS
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Jobs", f"{len(df_jobs):,}")
-    with col2:
-        val = df_jobs[job_title_col].nunique() if job_title_col else "N/A"
-        st.metric("Unique Job Titles", val)
-    with col3:
-        val = df_jobs["country"].nunique() if "country" in df_jobs.columns else "N/A"
-        st.metric("Countries", val)
+    country = st.sidebar.multiselect(
+        "Country",
+        options=sorted(df_jobs['country'].dropna().unique())
+        if 'country' in df_jobs.columns else []
+    )
+
+    exp_level = st.sidebar.multiselect(
+        "Experience Level",
+        options=sorted(df_jobs['experience_level'].dropna().unique())
+        if 'experience_level' in df_jobs.columns else []
+    )
+
+    category = st.sidebar.multiselect(
+        "Job Category",
+        options=sorted(df_jobs['job_category'].dropna().unique())
+        if 'job_category' in df_jobs.columns else []
+    )
+
+    filtered_df = df_jobs.copy()
+
+    if country:
+        filtered_df = filtered_df[
+            filtered_df['country'].isin(country)
+        ]
+
+    if exp_level:
+        filtered_df = filtered_df[
+            filtered_df['experience_level'].isin(exp_level)
+        ]
+
+    if category:
+        filtered_df = filtered_df[
+            filtered_df['job_category'].isin(category)
+        ]
+
+    # SEARCH
+    search = st.text_input("🔍 Search Job Title")
+
+    if search and 'job_title' in filtered_df.columns:
+        filtered_df = filtered_df[
+            filtered_df['job_title']
+            .astype(str)
+            .str.contains(search, case=False, na=False)
+        ]
+
+    # KPI
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Total Jobs", len(filtered_df))
+
+    c2.metric(
+        "Countries",
+        filtered_df['country'].nunique()
+        if 'country' in filtered_df.columns else 0
+    )
+
+    c3.metric(
+        "Unique Job Titles",
+        filtered_df['job_title'].nunique()
+        if 'job_title' in filtered_df.columns else 0
+    )
+
+    c4.metric(
+        "Avg Salary",
+        f"${filtered_df['annual_salary_usd'].mean():,.0f}"
+        if 'annual_salary_usd' in filtered_df.columns else "N/A"
+    )
 
     st.divider()
 
-    # DATA PREVIEW
-    with st.expander("Lihat Dataset Preview"):
-        st.dataframe(df_jobs.head(10))
+    # PREVIEW
+    with st.expander("📁 Dataset Preview"):
+        st.dataframe(filtered_df.head(20))
 
-    # VISUALISASI
-    c1, c2 = st.columns(2)
+    # VISUALS
+    col1, col2 = st.columns(2)
 
-    with c1:
-        if "experience_level" in df_jobs.columns:
+    with col1:
+        if 'experience_level' in filtered_df.columns:
             st.subheader("Experience Level")
-            st.bar_chart(df_jobs["experience_level"].value_counts())
+            fig = px.bar(
+                filtered_df['experience_level']
+                .value_counts()
+                .reset_index(),
+                x='count',
+                y='experience_level',
+                orientation='h'
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    with c2:
-        if "job_category" in df_jobs.columns:
-            st.subheader("Top 10 Job Categories")
-            st.bar_chart(df_jobs["job_category"].value_counts().head(10))
+    with col2:
+        if 'job_category' in filtered_df.columns:
+            st.subheader("Top Job Categories")
+            fig = px.pie(
+                filtered_df,
+                names='job_category'
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # SALARY ANALYSIS (Bagian yang tadinya Error)
-    if "job_category" in df_jobs.columns and "annual_salary_usd" in df_jobs.columns:
-        st.subheader("💰 Average Salary by Job Category (USD)")
-        
-        # Menghapus data yang kosong (NaN) agar grafik akurat
-        salary_df = df_jobs.dropna(subset=["annual_salary_usd"])
-        
-        salary_by_category = (
-            salary_df.groupby("job_category")["annual_salary_usd"]
-            .mean()
-            .sort_values(ascending=False)
+    # SALARY
+    if 'annual_salary_usd' in filtered_df.columns:
+        st.subheader("💰 Salary Distribution")
+        fig = px.histogram(
+            filtered_df,
+            x='annual_salary_usd'
         )
-        st.bar_chart(salary_by_category)
+        st.plotly_chart(fig, use_container_width=True)
 
-    # TOP SKILLS
-    if "required_skills" in df_jobs.columns:
+    # SKILLS
+    if 'required_skills' in filtered_df.columns:
         st.subheader("🛠️ Top Required Skills")
-        all_skills = df_jobs["required_skills"].fillna("").str.split(r"\s*\|\s*").explode().str.strip()
-        top_skills = all_skills[all_skills != ""].value_counts().head(15)
-        st.bar_chart(top_skills)
+
+        skills = (
+            filtered_df['required_skills']
+            .fillna('')
+            .str.split(r'\s*\|\s*')
+            .explode()
+        )
+
+        top_skills = skills.value_counts().head(15)
+
+        fig = px.bar(
+            top_skills,
+            x=top_skills.values,
+            y=top_skills.index,
+            orientation='h'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    # DOWNLOAD
+    csv = filtered_df.to_csv(index=False)
+
+    st.download_button(
+        label="⬇ Download Filtered Dataset",
+        data=csv,
+        file_name="filtered_ai_jobs.csv",
+        mime="text/csv"
+    )
 
 # =====================================
-# DASHBOARD 2: IT ROLES
+# DASHBOARD 2
 # =====================================
 elif menu == "IT Roles & Skills":
-    st.header("💻 IT Roles & Skills Analysis")
-    st.dataframe(df_roles.head())
-    st.subheader("Columns Available")
-    st.write(df_roles.columns.tolist())
+
+    st.header("💻 IT Roles & Skills")
+
+    search_role = st.text_input("🔍 Search Role")
+
+    temp_df = df_roles.copy()
+
+    if search_role:
+        temp_df = temp_df[
+            temp_df['job_title']
+            .astype(str)
+            .str.contains(search_role, case=False, na=False)
+        ]
+
+    st.dataframe(temp_df.head(20))
+
+    if not temp_df.empty:
+        selected_role = st.selectbox(
+            "Select Role",
+            temp_df['job_title'].dropna().unique()
+        )
+
+        role_info = temp_df[
+            temp_df['job_title'] == selected_role
+        ].iloc[0]
+
+        st.subheader("📌 Job Description")
+        st.write(role_info.get('job_description', '-'))
+
+        st.subheader("🛠️ Skills")
+        st.write(role_info.get('skills', '-'))
+
+        st.subheader("🎓 Certifications")
+        st.write(role_info.get('certifications', '-'))
 
 # =====================================
-# DASHBOARD 3: CAREER
+# DASHBOARD 3
 # =====================================
 elif menu == "Career Recommendation":
-    st.header("🎯 Career Recommendation Analysis")
-    st.dataframe(df_career.head())
-    st.subheader("Columns Available")
-    st.write(df_career.columns.tolist())
+
+    st.header("🎯 Career Recommendation")
+
+    st.write("Input your intelligence preference")
+
+    logical = st.slider("Logical Intelligence", 0, 100, 50)
+    linguistic = st.slider("Linguistic Intelligence", 0, 100, 50)
+    interpersonal = st.slider("Interpersonal Intelligence", 0, 100, 50)
+
+    st.subheader("🚀 Recommended Career")
+
+    if logical > 70:
+        st.success("Data Scientist / AI Engineer")
+    elif linguistic > 70:
+        st.success("Business Analyst / Product Manager")
+    elif interpersonal > 70:
+        st.success("Project Manager / HR Tech")
+    else:
+        st.info("Software Engineer / IT Support")
+
+    st.dataframe(df_career.head(20))
 
 # =====================================
 # FOOTER
 # =====================================
 st.markdown("---")
 st.caption("FuturePath AI Dashboard | Developed by Data Science Team © 2026")
+```
+
+### Cara pakai
+
+1. Replace `app.py` lama
+2. Pastikan nama CSV sama persis
+3. Commit & push ke GitHub
+4. Redeploy Streamlit
