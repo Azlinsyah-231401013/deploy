@@ -305,11 +305,3 @@ elif menu == "Career Recommendation":
 # =====================================
 st.markdown("---")
 st.caption("FuturePath AI Dashboard | Developed by Data Science Team © 2026")
-```
-
-### Cara pakai
-
-1. Replace `app.py` lama
-2. Pastikan nama CSV sama persis
-3. Commit & push ke GitHub
-4. Redeploy Streamlit
