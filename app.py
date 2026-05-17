@@ -35,9 +35,17 @@ def process_dataframe(df):
 # =====================================
 @st.cache_data
 def load_data():
-    jobs = pd.read_csv("ai_jobs_market_2025_2026_clean.csv")
-    roles = pd.read_csv("it_job_roles_skills_clean.csv")
-    career = pd.read_csv("skill_career_recommendation_clean.csv")
+    jobs = pd.read_csv(
+    "data/processed/ai_jobs_market_2025_2026_clean.csv"
+    )
+    
+    roles = pd.read_csv(
+        "data/processed/it_job_roles_skills_clean.csv"
+    )
+    
+    career = pd.read_csv(
+        "data/processed/skill_career_recommendation_clean.csv"
+    )
 
     jobs = process_dataframe(jobs)
     roles = process_dataframe(roles)
