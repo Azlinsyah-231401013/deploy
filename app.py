@@ -12,28 +12,14 @@ st.set_page_config(
 )
 
 # =====================================
-# CUSTOM CSS
-# =====================================
-st.markdown('''
-<style>
-.metric-card {
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-</style>
-''', unsafe_allow_html=True)
-
-# =====================================
-# CLEAN DATA
+# DATA CLEANING
 # =====================================
 def process_dataframe(df):
     df.columns = (
         df.columns
         .str.strip()
         .str.lower()
-        .str.replace(" ", "_")
+        .str.replace(" ", "_", regex=False)
     )
 
     if "annual_salary_usd" in df.columns:
@@ -62,7 +48,7 @@ def load_data():
 try:
     df_jobs, df_roles, df_career = load_data()
 except Exception as e:
-    st.error(f"Error loading data: {e}")
+    st.error(f"❌ Error loading data: {e}")
     st.stop()
 
 # =====================================
@@ -70,7 +56,7 @@ except Exception as e:
 # =====================================
 st.title("🚀 FuturePath AI Dashboard")
 st.markdown("### AI Career Analytics, Skill Insights & Career Recommendation")
-st.markdown("Explore AI job trends, IT skills, and future career recommendations.")
+st.write("Explore AI jobs, IT skills, and career opportunities.")
 
 # =====================================
 # SIDEBAR
@@ -86,7 +72,7 @@ menu = st.sidebar.radio(
 )
 
 # =====================================
-# DASHBOARD 1
+# AI JOBS MARKET
 # =====================================
 if menu == "AI Jobs Market":
 
@@ -95,137 +81,150 @@ if menu == "AI Jobs Market":
     # FILTERS
     st.sidebar.subheader("🔍 Filter Data")
 
-    country = st.sidebar.multiselect(
-        "Country",
-        options=sorted(df_jobs['country'].dropna().unique())
-        if 'country' in df_jobs.columns else []
-    )
+    country = []
+    if "country" in df_jobs.columns:
+        country = st.sidebar.multiselect(
+            "Country",
+            sorted(df_jobs["country"].dropna().unique())
+        )
 
-    exp_level = st.sidebar.multiselect(
-        "Experience Level",
-        options=sorted(df_jobs['experience_level'].dropna().unique())
-        if 'experience_level' in df_jobs.columns else []
-    )
+    exp_level = []
+    if "experience_level" in df_jobs.columns:
+        exp_level = st.sidebar.multiselect(
+            "Experience Level",
+            sorted(df_jobs["experience_level"].dropna().unique())
+        )
 
-    category = st.sidebar.multiselect(
-        "Job Category",
-        options=sorted(df_jobs['job_category'].dropna().unique())
-        if 'job_category' in df_jobs.columns else []
-    )
+    category = []
+    if "job_category" in df_jobs.columns:
+        category = st.sidebar.multiselect(
+            "Job Category",
+            sorted(df_jobs["job_category"].dropna().unique())
+        )
 
     filtered_df = df_jobs.copy()
 
     if country:
         filtered_df = filtered_df[
-            filtered_df['country'].isin(country)
+            filtered_df["country"].isin(country)
         ]
 
     if exp_level:
         filtered_df = filtered_df[
-            filtered_df['experience_level'].isin(exp_level)
+            filtered_df["experience_level"].isin(exp_level)
         ]
 
     if category:
         filtered_df = filtered_df[
-            filtered_df['job_category'].isin(category)
+            filtered_df["job_category"].isin(category)
         ]
 
-    # SEARCH
+    # SEARCH JOB
     search = st.text_input("🔍 Search Job Title")
 
-    if search and 'job_title' in filtered_df.columns:
+    if search and "job_title" in filtered_df.columns:
         filtered_df = filtered_df[
-            filtered_df['job_title']
+            filtered_df["job_title"]
             .astype(str)
             .str.contains(search, case=False, na=False)
         ]
 
     # KPI
-    c1, c2, c3, c4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
-    c1.metric("Total Jobs", len(filtered_df))
+    with col1:
+        st.metric("Total Jobs", len(filtered_df))
 
-    c2.metric(
-        "Countries",
-        filtered_df['country'].nunique()
-        if 'country' in filtered_df.columns else 0
-    )
+    with col2:
+        st.metric(
+            "Countries",
+            filtered_df["country"].nunique()
+            if "country" in filtered_df.columns else 0
+        )
 
-    c3.metric(
-        "Unique Job Titles",
-        filtered_df['job_title'].nunique()
-        if 'job_title' in filtered_df.columns else 0
-    )
+    with col3:
+        st.metric(
+            "Job Titles",
+            filtered_df["job_title"].nunique()
+            if "job_title" in filtered_df.columns else 0
+        )
 
-    c4.metric(
-        "Avg Salary",
-        f"${filtered_df['annual_salary_usd'].mean():,.0f}"
-        if 'annual_salary_usd' in filtered_df.columns else "N/A"
-    )
+    with col4:
+        if "annual_salary_usd" in filtered_df.columns:
+            avg_salary = filtered_df[
+                "annual_salary_usd"
+            ].mean()
 
-    st.divider()
+            st.metric(
+                "Avg Salary",
+                f"${avg_salary:,.0f}"
+            )
 
-    # PREVIEW
+    # DATA PREVIEW
     with st.expander("📁 Dataset Preview"):
         st.dataframe(filtered_df.head(20))
 
-    # VISUALS
+    # CHARTS
     col1, col2 = st.columns(2)
 
     with col1:
-        if 'experience_level' in filtered_df.columns:
+        if "experience_level" in filtered_df.columns:
             st.subheader("Experience Level")
-            fig = px.bar(
-                filtered_df['experience_level']
+            exp_counts = (
+                filtered_df["experience_level"]
                 .value_counts()
-                .reset_index(),
-                x='count',
-                y='experience_level',
-                orientation='h'
+                .reset_index()
+            )
+            exp_counts.columns = ["level", "count"]
+
+            fig = px.bar(
+                exp_counts,
+                x="level",
+                y="count"
             )
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        if 'job_category' in filtered_df.columns:
+        if "job_category" in filtered_df.columns:
             st.subheader("Top Job Categories")
             fig = px.pie(
                 filtered_df,
-                names='job_category'
+                names="job_category"
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    # SALARY
-    if 'annual_salary_usd' in filtered_df.columns:
+    # SALARY DISTRIBUTION
+    if "annual_salary_usd" in filtered_df.columns:
         st.subheader("💰 Salary Distribution")
         fig = px.histogram(
             filtered_df,
-            x='annual_salary_usd'
+            x="annual_salary_usd"
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # SKILLS
-    if 'required_skills' in filtered_df.columns:
+    # TOP SKILLS
+    if "required_skills" in filtered_df.columns:
         st.subheader("🛠️ Top Required Skills")
 
         skills = (
-            filtered_df['required_skills']
-            .fillna('')
-            .str.split(r'\s*\|\s*')
+            filtered_df["required_skills"]
+            .fillna("")
+            .str.split(r"\s*\|\s*")
             .explode()
+            .str.strip()
         )
 
-        top_skills = skills.value_counts().head(15)
+        top_skills = skills.value_counts().head(10)
 
         fig = px.bar(
-            top_skills,
             x=top_skills.values,
             y=top_skills.index,
-            orientation='h'
+            orientation="h"
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-    # DOWNLOAD
+    # DOWNLOAD CSV
     csv = filtered_df.to_csv(index=False)
 
     st.download_button(
@@ -236,69 +235,79 @@ if menu == "AI Jobs Market":
     )
 
 # =====================================
-# DASHBOARD 2
+# IT ROLES & SKILLS
 # =====================================
 elif menu == "IT Roles & Skills":
 
     st.header("💻 IT Roles & Skills")
 
-    search_role = st.text_input("🔍 Search Role")
+    search_role = st.text_input("🔍 Search Job Role")
 
     temp_df = df_roles.copy()
 
-    if search_role:
+    if search_role and "job_title" in temp_df.columns:
         temp_df = temp_df[
-            temp_df['job_title']
+            temp_df["job_title"]
             .astype(str)
             .str.contains(search_role, case=False, na=False)
         ]
 
     st.dataframe(temp_df.head(20))
 
-    if not temp_df.empty:
+    if not temp_df.empty and "job_title" in temp_df.columns:
         selected_role = st.selectbox(
             "Select Role",
-            temp_df['job_title'].dropna().unique()
+            temp_df["job_title"].dropna().unique()
         )
 
         role_info = temp_df[
-            temp_df['job_title'] == selected_role
+            temp_df["job_title"] == selected_role
         ].iloc[0]
 
         st.subheader("📌 Job Description")
-        st.write(role_info.get('job_description', '-'))
+        st.write(role_info.get("job_description", "-"))
 
         st.subheader("🛠️ Skills")
-        st.write(role_info.get('skills', '-'))
+        st.write(role_info.get("skills", "-"))
 
         st.subheader("🎓 Certifications")
-        st.write(role_info.get('certifications', '-'))
+        st.write(role_info.get("certifications", "-"))
 
 # =====================================
-# DASHBOARD 3
+# CAREER RECOMMENDATION
 # =====================================
 elif menu == "Career Recommendation":
 
     st.header("🎯 Career Recommendation")
 
-    st.write("Input your intelligence preference")
+    logical = st.slider(
+        "Logical Intelligence",
+        0, 100, 50
+    )
 
-    logical = st.slider("Logical Intelligence", 0, 100, 50)
-    linguistic = st.slider("Linguistic Intelligence", 0, 100, 50)
-    interpersonal = st.slider("Interpersonal Intelligence", 0, 100, 50)
+    linguistic = st.slider(
+        "Linguistic Intelligence",
+        0, 100, 50
+    )
+
+    interpersonal = st.slider(
+        "Interpersonal Intelligence",
+        0, 100, 50
+    )
 
     st.subheader("🚀 Recommended Career")
 
-    if logical > 70:
-        st.success("Data Scientist / AI Engineer")
-    elif linguistic > 70:
-        st.success("Business Analyst / Product Manager")
-    elif interpersonal > 70:
-        st.success("Project Manager / HR Tech")
+    if logical >= 70:
+        st.success("✅ AI Engineer / Data Scientist")
+    elif linguistic >= 70:
+        st.success("✅ Business Analyst / Product Manager")
+    elif interpersonal >= 70:
+        st.success("✅ Project Manager / HR Specialist")
     else:
-        st.info("Software Engineer / IT Support")
+        st.info("✅ Software Engineer / IT Support")
 
-    st.dataframe(df_career.head(20))
+    with st.expander("Career Dataset Preview"):
+        st.dataframe(df_career.head(20))
 
 # =====================================
 # FOOTER
