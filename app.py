@@ -73,15 +73,15 @@ def convert_numeric(df):
 def load_data():
 
     jobs = pd.read_csv(
-        "ai_jobs_market_2025_2026_clean (2).csv"
+        "ai_jobs_market_2025_2026_clean.csv"
     )
 
     roles = pd.read_csv(
-        "it_job_roles_skills_clean(1).csv"
+        "it_job_roles_skills_clean.csv"
     )
 
     career = pd.read_csv(
-        "skill_career_recommendation_clean(1).csv"
+        "skill_career_recommendation_clean.csv"
     )
 
     jobs = clean_columns(jobs)
